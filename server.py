@@ -7,9 +7,9 @@ import requests
 
 # Endereços IP dos servidores VENDEPASS das companhias conveniadas
 CONVENIADAS = {
-    'Companhia A': 'http://192.168.1.10:5000',
-    'Companhia B': 'http://192.168.1.11:5000',
-    'Companhia C': 'http://192.168.1.12:5000'
+    'Companhia A': 'http://172.16.112.1:5000',
+    'Companhia B': 'http://172.16.112.2:5000',
+    'Companhia C': 'http://172.16.112.3:5000'
 }
 
 app = Flask(__name__)
