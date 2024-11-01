@@ -2,8 +2,8 @@ from socket import *
 from threading import Thread, Lock
 import random
 import json
-from flask import Flask, request, jsonify
-import requests
+from flask import Flask, request, jsonify # type: ignore
+import requests # type: ignore
 
 # Endereços IP dos servidores VENDEPASS das companhias conveniadas
 CONVENIADAS = {
