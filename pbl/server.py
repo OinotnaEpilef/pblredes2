@@ -15,7 +15,7 @@ CONVENIADAS = {
 
 app = Flask(__name__)
 lock = Lock()
-cidades = ["Belém", "Fortaleza", "Brasília", "São Paulo", "Curitiba", 
+cidades = ["Belem", "Fortaleza", "Brasilia", "Sao Paulo", "Curitiba", 
            "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
 
 rotas = {}
@@ -87,7 +87,7 @@ def requisitar_acesso(rota, caminho_idx):
                 "timestamp": timestamp
             })
         except Exception as e:
-            print(f"Erro ao enviar requisição para {url}: {e}")
+            print(f"Erro ao enviar requisicao para {url}: {e}")
 
 # Processa a resposta de servidores concedendo acesso à seção crítica
 @app.route('/responder_pedido', methods=['POST'])
@@ -137,7 +137,7 @@ def handle_client(con, addr):
         rota_escolhida = dados.get("rota")
 
         if rota_escolhida not in rotas:
-            con.send(json.dumps({"erro": "Rota inválida!"}).encode())
+            con.send(json.dumps({"erro": "Rota invalida!"}).encode())
             return
 
         # Montar lista de caminhos com as rotas disponíveis na companhia atual
@@ -177,7 +177,7 @@ def handle_client(con, addr):
                     return
 
         # Confirmação da reserva ao cliente
-        con.send(json.dumps({"sucesso": "Reserva completa com todos os trechos disponíveis!"}).encode())
+        con.send(json.dumps({"sucesso": "Reserva completa com todos os trechos disponiveis!"}).encode())
 
     except Exception as e:
         con.send(json.dumps({"erro": str(e)}).encode())

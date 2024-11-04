@@ -3,11 +3,11 @@ import json
 
 def main():
     # Conectando ao servidor VENDEPASS de uma companhia específica
-    print("Selecione o servidor para conexão:")
+    print("Selecione o servidor para conexao:")
     print("1 - Companhia A")
     print("2 - Companhia B")
     print("3 - Companhia C")
-    opcao = input("Escolha a opção: ")
+    opcao = input("Escolha a opcao: ")
 
     servidor = {
         "1": ("172.16.112.1", 10000),
