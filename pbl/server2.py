@@ -40,21 +40,13 @@ def gerar_rotas(cidades):
                     cidades_intermediarias = random.sample(cidades[:i] + cidades[i+1:], random.randint(1, 3))
                     percurso_cidades = [cidades[i]] + cidades_intermediarias + [cidades[j]]
                     for k in range(len(percurso_cidades) - 1):
-                        # Cada trecho agora inclui a companhia responsável
-                        trecho = (
-                            percurso_cidades[k], 
-                            percurso_cidades[k+1], 
-                            random.randint(2, 5),  # número de passagens
-                            random.choice(companhias)  # companhia responsável
-                        )
-                        percurso.append(trecho)
+                        percurso.append((percurso_cidades[k], percurso_cidades[k+1], random.randint(2,5), COMPANHIA))
                     rotas[rota_nome].append(percurso)
     return rotas
 
 def inicializar_trechos_comprados(rotas):
     return {rota: [[False] * len(trechos) for trechos in caminhos] for rota, caminhos in rotas.items()}
 
-rotas = gerar_rotas(cidades)
 trechos_comprados = inicializar_trechos_comprados(rotas)
 
 # API para verificar e reservar trechos entre companhias
@@ -84,6 +76,15 @@ def reservar_trecho():
                 return jsonify({"reserved": True})
     return jsonify({"reserved": False})
 
+# Função para listar rotas disponíveis para o cliente
+def listar_rotas(con, rotas):
+    enviar_mensagem(con, "Rotas disponíveis")
+    for i, rota in enumerate(rotas.keys()):
+        enviar_mensagem(con, f"{i+1}.{rota}")
+    enviar_mensagem(con, "escolha uma rota pelo número:")
+    rota_idx = int(con.recv(1024).decode().strip()) - 1
+    return (rotas.keys())[rota_idx]
+
 # Funções para consulta de trechos em outras companhias
 def consultar_trecho_outra_companhia(rota, trecho_idx, companhia):
     url = OUTRAS_COMPANHIAS[companhia] + "/api/check_trecho"
@@ -97,28 +98,28 @@ def reservar_trecho_outra_companhia(rota, trecho_idx, companhia):
 
 # Função para enviar mensagem ao cliente
 def enviar_mensagem(con, mensagem):
-    """Envia uma mensagem ao cliente."""
     con.send(f"{mensagem}\n".encode())
 
 # Função para exibir trechos de todas as companhias
-def listar_todos_trechos(con, rota):
-    enviar_mensagem(con, "Trechos disponíveis para essa rota:")
+def listar_todos_trechos(con, rota, rotas):
+    enviar_mensagem(con, f"Trechos disponíveis para essa rota:{rota}")
     todos_trechos = rotas[rota]
 
-    for idx, caminho in enumerate(todos_trechos):
-        for trecho_idx, trecho in enumerate(caminho):
-            origem, destino, _, companhia = trecho
-            enviar_mensagem(con, f"{idx + 1}.{trecho_idx + 1} - {origem} -> {destino} ({companhia})")
+    for idx, caminho in enumerate(rotas[rota]):
+        enviar_mensagem(con, f"{idx+1}. Trecho {idx+1}:")
+        for trecho in caminho:
+            enviar_mensagem(con, f" - {trecho[0]} -> {trecho[1]} com {trecho[2]} passagens disponíveis, {trecho[3]}")
     
-    # Depois de listar os trechos, o cliente escolhe
-    trecho_idx = obter_escolha_cliente(con)
-    if trecho_idx is not None:
-        trecho = todos_trechos[0][trecho_idx]  # Considerando apenas o primeiro caminho
-        companhia = trecho[3]
-        if companhia == COMPANHIA:
-            reservar_trecho_local(con, rota, trecho_idx)
-        else:
-            reservar_trecho_outra_companhia(con, rota, trecho_idx, companhia)
+    enviar_mensagem(con, "Escolha um caminho pelo número:")
+    caminho_idx = int(con.recv(1024).decode().strip()) - 1
+    return rotas[rota][caminho_idx], caminho_idx
+    #if trecho_idx is not None:
+    #    trecho = todos_trechos[0][trecho_idx]  # Considerando apenas o primeiro caminho
+    #    companhia = trecho[3]
+    #    if companhia == COMPANHIA:
+    #        reservar_trecho_local(con, rota, trecho_idx)
+    #    else:
+    #        reservar_trecho_outra_companhia(con, rota, trecho_idx, companhia)
 
 # Função para receber a escolha do cliente
 def obter_escolha_cliente(con):
@@ -128,6 +129,9 @@ def obter_escolha_cliente(con):
         return int(escolha) - 1  # Decrementa 1 para manter a indexação correta
     except ValueError:
         return None
+
+def recolher_trechos_de_todas_companhias():
+    return
 
 # Função para reservar um trecho localmente
 def reservar_trecho_local(con, rota, trecho_idx):
@@ -142,16 +146,12 @@ def reservar_trecho_local(con, rota, trecho_idx):
 def handle_client(con, adr):
     print(f"Cliente conectado: {adr}")
     con.send("Bem-vindo ao sistema de compra de passagens!\n".encode())
-    
-    # Listar rotas disponíveis
-    con.send("Rotas disponíveis:\n".encode())
-    for idx, rota in enumerate(rotas.keys()):
-        con.send(f"{idx + 1} - {rota}\n".encode())
-    
-    # Receber escolha da rota do cliente
-    rota_idx = int(con.recv(1024).decode()) - 1
-    rota_escolhida = list(rotas.keys())[rota_idx]
-
+    while True:
+        rota_escolhida = listar_rotas(con, rotas)
+        caminho_escolhido, caminho_idx = listar_todos_trechos(con, rota_escolhida, rotas)
+        enviar_mensagem(con, "Verificando a disponibilidade dos trechos...")
+        #with lock:
+            
     # Exibir todos os trechos para a rota escolhida, com companhia indicada
     con.send("Trechos disponíveis para essa rota:\n".encode())
     todos_trechos = rotas[rota_escolhida]
@@ -186,7 +186,7 @@ def handle_client(con, adr):
 def main():
     host = '0.0.0.0'  # Escuta em todas as interfaces
     port = 10000
-
+    rotas = gerar_rotas(cidades)
     server = socket(AF_INET, SOCK_STREAM)
     server.bind((host, port))
     server.listen(5)
@@ -194,9 +194,7 @@ def main():
 
     while True:
         con, adr = server.accept()
-        Thread(target=handle_client, args=(con, adr)).start()
+        Thread(target=handle_client, args=(con, adr, rotas)).start()
 
 if __name__ == "__main__":
-    from threading import Thread
-    Thread(target=lambda: app.run(host="0.0.0.0", port=5000)).start()
     main()
