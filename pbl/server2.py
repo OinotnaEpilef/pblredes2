@@ -4,13 +4,11 @@ import random
 from flask import Flask, request, jsonify
 import requests
 import json
-
 app = Flask(__name__)
 lock = Lock()
 companhias = ["Companhia A", "Companhia B", "Companhia C"]
 
-# Identificador da companhia e IPs das outras companhias
-COMPANHIA = "C"  # Altere para "A", "B", ou "C" dependendo da companhia
+COMPANHIA = "C"
 OUTRAS_COMPANHIAS = {
     "A": "http://172.16.112.1:5000",
     "B": "http://172.16.112.2:5000",
@@ -75,15 +73,43 @@ def reservar_trecho():
                 trechos_comprados[rota][0][trecho_idx] = True
                 return jsonify({"reserved": True})
     return jsonify({"reserved": False})
-
-# Função para listar rotas disponíveis para o cliente
+# Função para listar todas as rotas disponíveis combinando com as outras companhias
 def listar_rotas(con, rotas):
-    enviar_mensagem(con, "Rotas disponíveis")
-    for i, rota in enumerate(rotas.keys()):
-        enviar_mensagem(con, f"{i+1}.{rota}")
-    enviar_mensagem(con, "escolha uma rota pelo número:")
-    rota_idx = int(con.recv(1024).decode().strip()) - 1
-    return (rotas.keys())[rota_idx]
+    enviar_mensagem(con, "Rotas disponíveis de todas as companhias:")
+
+    # Dicionário para armazenar rotas unificadas (sem trechos)
+    rotas_completas = set(rotas.keys())
+
+    # Consultar rotas das outras companhias
+    for companhia, url in OUTRAS_COMPANHIAS.items():
+        try:
+            # Consulta as rotas da outra companhia via API
+            response = requests.get(f"{url}/rotas")
+            response.raise_for_status()
+            dados_companhia = response.json()
+
+            # Adiciona as rotas da companhia ao conjunto
+            rotas_completas.update(dados_companhia.keys())
+        except requests.RequestException:
+            enviar_mensagem(con, f"Erro ao obter rotas da companhia {companhia}")
+
+    # Exibir as rotas disponíveis ao cliente (apenas nomes)
+    rotas_completas = list(rotas_completas)
+    for i, rota in enumerate(rotas_completas):
+        enviar_mensagem(con, f"{i+1}. {rota}")
+
+    enviar_mensagem(con, "Escolha uma rota pelo número para ver os trechos detalhados:")
+    rota_idx = int(con.recv(1024).decode()) - 1
+    rota_escolhida = rotas_completas[rota_idx]
+    return rota_escolhida
+# Função para listar rotas disponíveis para o cliente
+#def listar_rotas(con, rotas):
+#    enviar_mensagem(con, "Rotas disponíveis")
+#    for i, rota in enumerate(rotas.keys()):
+#        enviar_mensagem(con, f"{i+1}.{rota}")
+#    enviar_mensagem(con, "Escolha uma rota pelo número:")
+#    rota_idx = int(con.recv(1024).decode().strip()) - 1
+#    return (rotas.keys())[rota_idx]
 
 # Funções para consulta de trechos em outras companhias
 def consultar_trecho_outra_companhia(rota, trecho_idx, companhia):
@@ -101,18 +127,18 @@ def enviar_mensagem(con, mensagem):
     con.send(f"{mensagem}\n".encode())
 
 # Função para exibir trechos de todas as companhias
-def listar_todos_trechos(con, rota, rotas):
-    enviar_mensagem(con, f"Trechos disponíveis para essa rota:{rota}")
-    todos_trechos = rotas[rota]
+def listar_todos_trechos(con, rota_escolhida, rotas):
+    enviar_mensagem(con, f"Trechos disponíveis para essa rota:{rota_escolhida}")
+    #todos_trechos = rotas[rota_escolhida]
 
-    for idx, caminho in enumerate(rotas[rota]):
+    for idx, caminho in enumerate(rotas[rota_escolhida]):
         enviar_mensagem(con, f"{idx+1}. Trecho {idx+1}:")
         for trecho in caminho:
             enviar_mensagem(con, f" - {trecho[0]} -> {trecho[1]} com {trecho[2]} passagens disponíveis, {trecho[3]}")
     
     enviar_mensagem(con, "Escolha um caminho pelo número:")
     caminho_idx = int(con.recv(1024).decode().strip()) - 1
-    return rotas[rota][caminho_idx], caminho_idx
+    return rotas[rota_escolhida][caminho_idx], caminho_idx
     #if trecho_idx is not None:
     #    trecho = todos_trechos[0][trecho_idx]  # Considerando apenas o primeiro caminho
     #    companhia = trecho[3]
@@ -130,7 +156,7 @@ def obter_escolha_cliente(con):
     except ValueError:
         return None
 
-def recolher_trechos_de_todas_companhias():
+def verificar_disponibilidade():
     return
 
 # Função para reservar um trecho localmente
@@ -143,7 +169,7 @@ def reservar_trecho_local(con, rota, trecho_idx):
         else:
             enviar_mensagem(con, "Passagem indisponível.")
 
-def handle_client(con, adr):
+def handle_client(con, adr, rotas):
     print(f"Cliente conectado: {adr}")
     con.send("Bem-vindo ao sistema de compra de passagens!\n".encode())
     while True:
