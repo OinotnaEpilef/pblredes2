@@ -65,9 +65,7 @@ def verificar_disponibilidade():
     # Se não encontrar o trecho, indica que o trecho não existe ou está indisponível
     return jsonify({"error": "Trecho não encontrado ou indisponível"}), 404
 
-
-
-#api para comprarpassagens
+#api para comprar passagens
 @app.route("/realizar_compra", methods=["POST"])
 def verificar_disponibilidade():
     origem = request.args.get("origem")
@@ -84,33 +82,6 @@ def verificar_disponibilidade():
     # Se não encontrar o trecho, indica que o trecho não existe ou está indisponível
     return jsonify({"error": "Trecho não encontrado ou indisponível"}), 404
 
-
-# API para verificar e reservar trechos entre companhias
-@app.route("/api/check_trecho", methods=["GET"])
-def check_trecho():
-    rota = request.args.get("rota")
-    trecho_idx = int(request.args.get("trecho_idx"))
-
-    with lock:
-        for caminho in rotas[rota]:
-            trecho = caminho[trecho_idx]
-            if trecho[2] > 0 and not trechos_comprados[rota][0][trecho_idx]:  # Considerando apenas o primeiro caminho
-                return jsonify({"available": True})
-    return jsonify({"available": False})
-
-@app.route("/api/reservar_trecho", methods=["POST"])
-def reservar_trecho():
-    rota = request.json["rota"]
-    trecho_idx = request.json["trecho_idx"]
-
-    with lock:
-        for caminho in rotas[rota]:
-            trecho = caminho[trecho_idx]
-            if trecho[2] > 0 and not trechos_comprados[rota][0][trecho_idx]:  # Considerando apenas o primeiro caminho
-                trecho = (trecho[0], trecho[1], trecho[2] - 1, trecho[3])
-                trechos_comprados[rota][0][trecho_idx] = True
-                return jsonify({"reserved": True})
-    return jsonify({"reserved": False})
 # Função para listar todas as rotas disponíveis combinando com as outras companhias
 def listar_rotas(con, rotas):
     enviar_mensagem(con, "Rotas disponíveis de todas as companhias:")
@@ -140,25 +111,6 @@ def listar_rotas(con, rotas):
     rota_idx = int(con.recv(1024).decode()) - 1
     rota_escolhida = rotas_completas[rota_idx]
     return rota_escolhida
-# Função para listar rotas disponíveis para o cliente
-#def listar_rotas(con, rotas):
-#    enviar_mensagem(con, "Rotas disponíveis")
-#    for i, rota in enumerate(rotas.keys()):
-#        enviar_mensagem(con, f"{i+1}.{rota}")
-#    enviar_mensagem(con, "Escolha uma rota pelo número:")
-#    rota_idx = int(con.recv(1024).decode().strip()) - 1
-#    return (rotas.keys())[rota_idx]
-
-# Funções para consulta de trechos em outras companhias
-def consultar_trecho_outra_companhia(rota, trecho_idx, companhia):
-    url = OUTRAS_COMPANHIAS[companhia] + "/api/check_trecho"
-    response = requests.get(url, params={"rota": rota, "trecho_idx": trecho_idx})
-    return response.json()["available"]
-
-def reservar_trecho_outra_companhia(rota, trecho_idx, companhia):
-    url = OUTRAS_COMPANHIAS[companhia] + "/api/reservar_trecho"
-    response = requests.post(url, json={"rota": rota, "trecho_idx": trecho_idx})
-    return response.json()["reserved"]
 
 # Função para enviar mensagem ao cliente
 def enviar_mensagem(con, mensagem):
@@ -178,22 +130,7 @@ def listar_todos_trechos(con, rota_escolhida, rotas):
     caminho_idx = int(con.recv(1024).decode().strip()) - 1
     companhia = trecho[3]
     return rotas[rota_escolhida][caminho_idx], companhia
-    #if trecho_idx is not None:
-    #    trecho = todos_trechos[0][trecho_idx]  # Considerando apenas o primeiro caminho
-    #    companhia = trecho[3]
-    #    if companhia == COMPANHIA:
-    #        reservar_trecho_local(con, rota, trecho_idx)
-    #    else:
-    #        reservar_trecho_outra_companhia(con, rota, trecho_idx, companhia)
 
-# Função para receber a escolha do cliente
-def obter_escolha_cliente(con):
-    """Recebe a escolha do cliente e converte para int, ou retorna None se inválido."""
-    try:
-        escolha = con.recv(1024).decode().strip()
-        return int(escolha) - 1  # Decrementa 1 para manter a indexação correta
-    except ValueError:
-        return None
 def verificar_disponibilidade(caminho, companhia_atual):
     # Percorre os trechos e verifica a disponibilidade
     for trecho in caminho:
@@ -248,16 +185,6 @@ def realizar_compra(caminho, companhia_atual):
                     print(f"Falha ao realizar a compra do trecho {origem} -> {destino} na companhia {companhia}.")
             except requests.RequestException as e:
                 print(f"Erro ao realizar a compra no servidor da companhia {companhia}: {e}")
-
-# Função para reservar um trecho localmente
-def reservar_trecho_local(con, rota, trecho_idx):
-    with lock:
-        trecho = rotas[rota][0][trecho_idx]  # Considerando apenas o primeiro caminho
-        if trecho[2] > 0:
-            rotas[rota][0][trecho_idx] = (trecho[0], trecho[1], trecho[2] - 1, trecho[3])
-            enviar_mensagem(con, "Compra realizada com sucesso!")
-        else:
-            enviar_mensagem(con, "Passagem indisponível.")
 
 def handle_client(con, adr, rotas):
     print(f"Cliente conectado: {adr}")
