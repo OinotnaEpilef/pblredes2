@@ -8,6 +8,8 @@ app = Flask(__name__)
 lock = Lock()
 companhias = ["Companhia A", "Companhia B", "Companhia C"]
 rotas = {}
+cidades = ["Belém", "Fortaleza", "Brasília", "São Paulo", "Curitiba", 
+           "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
 COMPANHIA = "C"
 OUTRAS_COMPANHIAS = {
     "A": "http://172.16.112.1:5000",
@@ -16,14 +18,6 @@ OUTRAS_COMPANHIAS = {
 }
 # Remover a companhia local do dicionário para evitar consultas a si mesma
 OUTRAS_COMPANHIAS.pop(COMPANHIA, None)
-
-# Lista de cidades e geração de rotas como antes
-cidades = ["Belém", "Fortaleza", "Brasília", "São Paulo", "Curitiba", 
-           "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
-
-# Funções para gerar rotas e inicializar trechos
-rotas = {}
-trechos_comprados = {}
 
 def gerar_rotas(cidades):
     for i in range(len(cidades)):
