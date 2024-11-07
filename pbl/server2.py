@@ -7,7 +7,7 @@ import json
 app = Flask(__name__)
 lock = Lock()
 companhias = ["Companhia A", "Companhia B", "Companhia C"]
-
+rotas = {}
 COMPANHIA = "C"
 OUTRAS_COMPANHIAS = {
     "A": "http://172.16.112.1:5000",
@@ -26,7 +26,6 @@ rotas = {}
 trechos_comprados = {}
 
 def gerar_rotas(cidades):
-    rotas = {}
     for i in range(len(cidades)):
         for j in range(len(cidades)):
             if i != j:
@@ -46,6 +45,45 @@ def inicializar_trechos_comprados(rotas):
     return {rota: [[False] * len(trechos) for trechos in caminhos] for rota, caminhos in rotas.items()}
 
 trechos_comprados = inicializar_trechos_comprados(rotas)
+
+#api para verificar disponibilidade de passagens
+@app.route("/verificar_disponibilidade", methods=["GET"])
+def verificar_disponibilidade():
+    origem = request.args.get("origem")
+    destino = request.args.get("destino")
+    
+    if not origem or not destino:
+        return jsonify({"error": "Parâmetros 'origem' e 'destino' são necessários"}), 400
+    
+    # Percorre as rotas para encontrar o trecho com origem e destino solicitados
+    for rota in rotas.values():
+        for trecho in rota:
+            if trecho[0] == origem and trecho[1] == destino:
+                if trecho[2] > 0:
+                    passagens_disponiveis = trecho[2]
+                    return jsonify({"passagens_disponiveis": passagens_disponiveis})
+    # Se não encontrar o trecho, indica que o trecho não existe ou está indisponível
+    return jsonify({"error": "Trecho não encontrado ou indisponível"}), 404
+
+
+
+#api para comprarpassagens
+@app.route("/realizar_compra", methods=["POST"])
+def verificar_disponibilidade():
+    origem = request.args.get("origem")
+    destino = request.args.get("destino")
+    
+    if not origem or not destino:
+        return jsonify({"error": "Parâmetros 'origem' e 'destino' são necessários"}), 400
+    
+    # Percorre as rotas para encontrar o trecho com origem e destino solicitados
+    for rota in rotas.values():
+        for trecho in rota:
+            if trecho[0] == origem and trecho[1] == destino:
+                trecho[2] -=1
+    # Se não encontrar o trecho, indica que o trecho não existe ou está indisponível
+    return jsonify({"error": "Trecho não encontrado ou indisponível"}), 404
+
 
 # API para verificar e reservar trechos entre companhias
 @app.route("/api/check_trecho", methods=["GET"])
@@ -138,7 +176,8 @@ def listar_todos_trechos(con, rota_escolhida, rotas):
     
     enviar_mensagem(con, "Escolha um caminho pelo número:")
     caminho_idx = int(con.recv(1024).decode().strip()) - 1
-    return rotas[rota_escolhida][caminho_idx], caminho_idx
+    companhia = trecho[3]
+    return rotas[rota_escolhida][caminho_idx], companhia
     #if trecho_idx is not None:
     #    trecho = todos_trechos[0][trecho_idx]  # Considerando apenas o primeiro caminho
     #    companhia = trecho[3]
@@ -155,9 +194,60 @@ def obter_escolha_cliente(con):
         return int(escolha) - 1  # Decrementa 1 para manter a indexação correta
     except ValueError:
         return None
+def verificar_disponibilidade(caminho, companhia_atual):
+    # Percorre os trechos e verifica a disponibilidade
+    for trecho in caminho:
+        origem, destino, passagens_disponiveis, companhia = trecho
 
-def verificar_disponibilidade():
-    return
+        if companhia == companhia_atual:
+            # Verifica localmente se o trecho é da companhia atual
+            if passagens_disponiveis <= 0:
+                return False  # Sem passagens disponíveis localmente
+        else:
+            # Consulta a companhia remota para verificar a disponibilidade
+            match trecho[3]:
+                case "Companhia A":
+                    url_companhia = "http://172.16.112.1:5000"
+                case "Companhia B":
+                    url_companhia = "http://172.16.112.2:5000"
+                case "Companhia C":
+                    url_companhia = "http://172.16.112.3:5000"
+            try:
+                response = requests.get(f"{url_companhia}/verificar_disponibilidade", params={"origem": origem, "destino": destino})
+                response.raise_for_status()
+                disponivel = response.json().get("disponivel", False)
+                if not disponivel:
+                    return False  # Se o trecho não tiver passagens, retorna False
+            except requests.RequestException as e:
+                print(f"Erro ao verificar a disponibilidade no servidor da companhia {companhia}: {e}")
+                return False  # Em caso de erro, assume indisponibilidade
+
+    return True  # Se todos os trechos tiverem passagens disponíveis, retorna True
+
+def realizar_compra(caminho, companhia_atual):
+    for i, trecho in enumerate(caminho):
+        origem, destino, passagens_disponiveis, companhia = trecho
+        
+        if companhia == companhia_atual:
+            # Compra local: decrementa o número de passagens
+            caminho[i] = (origem, destino, passagens_disponiveis - 1, companhia)
+        else:
+            # Compra remota: realiza uma requisição para decrementar no servidor da outra companhia
+            match trecho[3]:
+                case "Companhia A":
+                    url_companhia = "http://172.16.112.1:5000"
+                case "Companhia B":
+                    url_companhia = "http://172.16.112.2:5000"
+                case "Companhia C":
+                    url_companhia = "http://172.16.112.3:5000"
+            try:
+                response = requests.post(f"{url_companhia}/realizar_compra", json={"origem": origem, "destino": destino})
+                response.raise_for_status()  # Confirma sucesso da requisição
+                sucesso = response.json().get("sucesso", False)
+                if not sucesso:
+                    print(f"Falha ao realizar a compra do trecho {origem} -> {destino} na companhia {companhia}.")
+            except requests.RequestException as e:
+                print(f"Erro ao realizar a compra no servidor da companhia {companhia}: {e}")
 
 # Função para reservar um trecho localmente
 def reservar_trecho_local(con, rota, trecho_idx):
@@ -174,37 +264,18 @@ def handle_client(con, adr, rotas):
     con.send("Bem-vindo ao sistema de compra de passagens!\n".encode())
     while True:
         rota_escolhida = listar_rotas(con, rotas)
-        caminho_escolhido, caminho_idx = listar_todos_trechos(con, rota_escolhida, rotas)
+        caminho_escolhido, companhia = listar_todos_trechos(con, rota_escolhida, rotas)
         enviar_mensagem(con, "Verificando a disponibilidade dos trechos...")
-        #with lock:
-            
-    # Exibir todos os trechos para a rota escolhida, com companhia indicada
-    con.send("Trechos disponíveis para essa rota:\n".encode())
-    todos_trechos = rotas[rota_escolhida]
-    for idx, caminho in enumerate(todos_trechos):
-        for trecho_idx, trecho in enumerate(caminho):
-            origem, destino, _, companhia = trecho
-            con.send(f"{idx + 1}.{trecho_idx + 1} - {origem} -> {destino} ({companhia})\n".encode())
-    
-    # Receber escolha de trecho do cliente
-    trecho_idx = int(con.recv(1024).decode()) - 1
-
-    # Determinar companhia do trecho escolhido
-    trecho = todos_trechos[0][trecho_idx]  # Considerando apenas o primeiro caminho
-    origem, destino, _, companhia = trecho
-
-    # Reservar trecho localmente ou em outra companhia
-    if companhia == COMPANHIA:
-        # Reserva local
-        reservar_trecho_local(con, rota_escolhida, trecho_idx)
-    else:
-        # Reserva em outra companhia
-        reservado = reservar_trecho_outra_companhia(rota_escolhida, trecho_idx, companhia)
-        if reservado:
-            con.send("Compra realizada com sucesso!\n".encode())
-        else:
-            con.send("Passagem indisponível.\n".encode())
-
+        with lock:  # Bloquear para garantir consistência
+            if verificar_disponibilidade(caminho_escolhido, companhia):
+                realizar_compra(caminho_escolhido, companhia)
+                enviar_mensagem(con, "Compra realizada com sucesso! Todos os trechos foram adquiridos.")
+            else:
+                enviar_mensagem(con, "Não foi possível realizar a compra. Um ou mais trechos não possuem passagens suficientes.")
+        enviar_mensagem("Escolha se deseja fazer mais alguma coisa: 'Sim para ficar'")
+        resposta = con.recv(1024).decode().strip().lower()
+        if resposta != "Sim":
+            break
     con.close()
     print(f"Cliente desconectado: {adr}")
 
