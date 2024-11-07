@@ -3,7 +3,6 @@ from threading import Thread, Lock
 import random
 from flask import Flask, request, jsonify
 import requests
-import json
 client_ID = 0
 pendentes = {}
 sequencial = 0
