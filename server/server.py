@@ -15,9 +15,9 @@ cidades = ["Belém", "Fortaleza", "Brasília", "São Paulo", "Curitiba",
            "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
 COMPANHIA = "C"
 OUTRAS_COMPANHIAS = {
-    "A": "http://172.16.112.1:5000",
-    "B": "http://172.16.112.2:5000",
-    "C": "http://172.16.112.3:5000"
+    "A": "http://172.16.103.9:5000",
+    "B": "http://172.16.103.10:5000",
+    "C": "http://172.16.103.11:5000"
 }
 # Remover a companhia local do dicionário para evitar consultas a si mesma
 OUTRAS_COMPANHIAS.pop(COMPANHIA, None)
@@ -188,11 +188,11 @@ def verificar_disponibilidade(caminho, companhia_atual):
             # Consulta a companhia remota para verificar a disponibilidade
             match trecho[3]:
                 case "Companhia A":
-                    url_companhia = "http://172.16.112.1:5000"
+                    url_companhia = "http://172.16.103.9:5000"
                 case "Companhia B":
-                    url_companhia = "http://172.16.112.2:5000"
+                    url_companhia = "http://172.16.103.10:5000"
                 case "Companhia C":
-                    url_companhia = "http://172.16.112.3:5000"
+                    url_companhia = "http://172.16.103.11:5000"
             try:
                 response = requests.get(f"{url_companhia}/verificar_disponibilidade", params={"origem": origem, "destino": destino})
                 response.raise_for_status()
@@ -216,11 +216,11 @@ def realizar_compra(caminho, companhia_atual):
             # Compra remota: realiza uma requisição para decrementar no servidor da outra companhia
             match trecho[3]:
                 case "Companhia A":
-                    url_companhia = "http://172.16.112.1:5000"
+                    url_companhia = "http://172.16.103.9:5000"
                 case "Companhia B":
-                    url_companhia = "http://172.16.112.2:5000"
+                    url_companhia = "http://172.16.103.10:5000"
                 case "Companhia C":
-                    url_companhia = "http://172.16.112.3:5000"
+                    url_companhia = "http://172.16.103.11:5000"
             try:
                 response = requests.post(f"{url_companhia}/realizar_compra", json={"origem": origem, "destino": destino})
                 response.raise_for_status()  # Confirma sucesso da requisição

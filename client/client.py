@@ -17,11 +17,11 @@ def escolher_servidor():
     
     opcao = input("Digite o número da companhia: ")
     if opcao == "1":
-        return "172.16.112.1", 10000
+        return "172.16.103.9", 10000
     elif opcao == "2":
-        return "172.16.112.2", 10000
+        return "172.16.103.10", 10000
     elif opcao == "3":
-        return "172.16.112.3", 10000
+        return "172.16.103.11", 10000
     else:
         print("Opção inválida.")
         return escolher_servidor()
