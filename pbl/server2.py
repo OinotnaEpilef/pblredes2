@@ -4,6 +4,7 @@ import random
 from flask import Flask, request, jsonify
 import requests
 import json
+client_ID = 0
 pendentes = {}
 sequencial = 0
 app = Flask(__name__)
@@ -42,6 +43,16 @@ def inicializar_trechos_comprados(rotas):
 
 trechos_comprados = inicializar_trechos_comprados(rotas)
 
+#chama a solicitação de acesso a região crítica
+def solicitar_permissao(cliente_id, companhias):
+    """
+    Solicita permissão a todos os servidores para garantir que o cliente tenha acesso
+    exclusivo para a compra.
+    """
+    for companhia in companhias:
+        url = f"http://{companhia}.com/solicitar_acesso"
+        response = requests.post(url, json={"cliente_id": cliente_id})
+        print(response.json())
 
 # Solicitação de acesso à seção crítica
 @app.route("/solicitar_acesso", methods=["POST"])
@@ -165,11 +176,10 @@ def listar_todos_trechos(con, rota_escolhida, rotas):
     companhia = trecho[3]
     return rotas[rota_escolhida][caminho_idx], companhia
 
+# Percorre os trechos e verifica a disponibilidade
 def verificar_disponibilidade(caminho, companhia_atual):
-    # Percorre os trechos e verifica a disponibilidade
     for trecho in caminho:
         origem, destino, passagens_disponiveis, companhia = trecho
-
         if companhia == companhia_atual:
             # Verifica localmente se o trecho é da companhia atual
             if passagens_disponiveis <= 0:
@@ -194,6 +204,7 @@ def verificar_disponibilidade(caminho, companhia_atual):
                 return False  # Em caso de erro, assume indisponibilidade
     return True  # Se todos os trechos tiverem passagens disponíveis, retorna True
 
+#faz a compra dos trechos
 def realizar_compra(caminho, companhia_atual):
     for i, trecho in enumerate(caminho):
         origem, destino, passagens_disponiveis, companhia = trecho
@@ -222,12 +233,15 @@ def realizar_compra(caminho, companhia_atual):
 def handle_client(con, adr, rotas):
     print(f"Cliente conectado: {adr}")
     con.send("Bem-vindo ao sistema de compra de passagens!\n".encode())
+    con.send("Escolha seu número ID: ")
+    client_ID = con.recv(1024).decode().strip()
     while True:
         rota_escolhida = listar_rotas(con, rotas)
         caminho_escolhido, companhia = listar_todos_trechos(con, rota_escolhida, rotas)
         enviar_mensagem(con, "Verificando a disponibilidade dos trechos...")
         with lock:  # Bloquear para garantir consistência
             if verificar_disponibilidade(caminho_escolhido, companhia):
+                solicitar_permissao(client_ID, OUTRAS_COMPANHIAS)
                 realizar_compra(caminho_escolhido, companhia)
                 enviar_mensagem(con, "Compra realizada com sucesso! Todos os trechos foram adquiridos.")
             else:
