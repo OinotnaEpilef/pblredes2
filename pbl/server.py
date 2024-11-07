@@ -1,202 +1,271 @@
 from socket import *
 from threading import Thread, Lock
 import random
-import json
 from flask import Flask, request, jsonify
 import requests
-import time
-
-# Endereços IP dos servidores VENDEPASS das companhias conveniadas
-CONVENIADAS = {
-    'Companhia A': 'http://172.16.112.1:5000',
-    'Companhia B': 'http://172.16.112.2:5000',
-    'Companhia C': 'http://172.16.112.3:5000'
-}
-
+import json
+client_ID = 0
+pendentes = {}
+sequencial = 0
 app = Flask(__name__)
 lock = Lock()
-cidades = ["Belem", "Fortaleza", "Brasilia", "Sao Paulo", "Curitiba", 
-           "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
-
+companhias = ["Companhia A", "Companhia B", "Companhia C"]
 rotas = {}
-trechos_comprados = {}
-timestamp = int(time.time())
-esperando_resposta = {}  # Controla respostas para requisições Ricart-Agrawala
-fila_pedidos = []  # Armazena pedidos de outros servidores para acessar a seção crítica
+cidades = ["Belém", "Fortaleza", "Brasília", "São Paulo", "Curitiba", 
+           "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
+COMPANHIA = "C"
+OUTRAS_COMPANHIAS = {
+    "A": "http://172.16.112.1:5000",
+    "B": "http://172.16.112.2:5000",
+    "C": "http://172.16.112.3:5000"
+}
+# Remover a companhia local do dicionário para evitar consultas a si mesma
+OUTRAS_COMPANHIAS.pop(COMPANHIA, None)
 
-# Gerar rotas
 def gerar_rotas(cidades):
-    global rotas
-    rotas = {}
     for i in range(len(cidades)):
         for j in range(len(cidades)):
             if i != j:
                 rota_nome = f"{cidades[i]}-{cidades[j]}"
                 rotas[rota_nome] = []
-                num_caminhos = random.randint(1, 3)
-                for _ in range(num_caminhos):
-                    caminho = []
+                num_percursos = random.randint(1, 3)
+                for _ in range(num_percursos):
+                    percurso = []
                     cidades_intermediarias = random.sample(cidades[:i] + cidades[i+1:], random.randint(1, 3))
-                    caminho_cidades = [cidades[i]] + cidades_intermediarias + [cidades[j]]
-                    for k in range(len(caminho_cidades) - 1):
-                        caminho.append((caminho_cidades[k], caminho_cidades[k+1], random.randint(2, 5)))
-                    rotas[rota_nome].append(caminho)
+                    percurso_cidades = [cidades[i]] + cidades_intermediarias + [cidades[j]]
+                    for k in range(len(percurso_cidades) - 1):
+                        percurso.append((percurso_cidades[k], percurso_cidades[k+1], random.randint(2,5), COMPANHIA))
+                    rotas[rota_nome].append(percurso)
+    return rotas
 
-# Inicializar trechos
-def inicializar_trechos_comprados():
-    global trechos_comprados
-    trechos_comprados = {rota: [[False] * len(trechos) for trechos in caminhos] for rota, caminhos in rotas.items()}
+def inicializar_trechos_comprados(rotas):
+    return {rota: [[False] * len(trechos) for trechos in caminhos] for rota, caminhos in rotas.items()}
 
-# Consultar rotas disponíveis nas conveniadas
-def consultar_rotas_conveniada(rota_escolhida, url_conveniada):
-    try:
-        response = requests.get(f"{url_conveniada}/consultar_rotas/{rota_escolhida}")
-        if response.status_code == 200:
-            return response.json().get("caminhos", [])
-        else:
-            print(f"Erro ao consultar {url_conveniada}: {response.status_code}")
-            return []
-    except Exception as e:
-        print(f"Erro ao se comunicar com {url_conveniada}: {e}")
-        return []
+trechos_comprados = inicializar_trechos_comprados(rotas)
 
-# Função para reservar um trecho em uma companhia conveniada
-def reservar_trecho_externo(rota_escolhida, caminho_idx, url_conveniada):
-    try:
-        response = requests.post(f"{url_conveniada}/reservar_trecho", json={
-            "rota": rota_escolhida,
-            "caminho_idx": caminho_idx
-        })
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Erro ao reservar trecho em {url_conveniada}: {e}")
-        return False
+#chama a solicitação de acesso a região crítica
+def solicitar_permissao(cliente_id, companhias):
+    """
+    Solicita permissão a todos os servidores para garantir que o cliente tenha acesso
+    exclusivo para a compra.
+    """
+    for companhia in companhias:
+        url = f"http://{companhia}.com/solicitar_acesso"
+        response = requests.post(url, json={"cliente_id": cliente_id})
+        print(response.json())
 
-# Funções de Ricart-Agrawala
+# Solicitação de acesso à seção crítica
+@app.route("/solicitar_acesso", methods=["POST"])
+def solicitar_acesso():
+    global sequencial
+    cliente_id = request.args.get("cliente_id")
 
-# Envia requisições a outros servidores para acesso à seção crítica
-def requisitar_acesso(rota, caminho_idx):
-    global timestamp, esperando_resposta
-    timestamp += 1
-    esperando_resposta[rota] = {url: False for url in CONVENIADAS.values()}
-    for url in CONVENIADAS.values():
+    if cliente_id not in pendentes:
+        pendentes[cliente_id] = []
+
+    pendentes[cliente_id].append({
+        "sequencial": sequencial
+    })
+    sequencial += 1
+
+    # Envia a solicitação para todas as outras companhias
+    for companhia, url in OUTRAS_COMPANHIAS.items():
         try:
-            requests.post(f"{url}/pedido_acesso", json={
-                "rota": rota,
-                "caminho_idx": caminho_idx,
-                "timestamp": timestamp
-            })
-        except Exception as e:
-            print(f"Erro ao enviar requisicao para {url}: {e}")
-
-# Processa a resposta de servidores concedendo acesso à seção crítica
-@app.route('/responder_pedido', methods=['POST'])
-def responder_pedido():
-    dados = request.json
-    rota = dados["rota"]
-    caminho_idx = dados["caminho_idx"]
-    global fila_pedidos
-
-    fila_pedidos.append((rota, caminho_idx))
+            response = requests.post(f"{url}/resposta_solicitacao", json={"cliente_id": cliente_id, "sequencial": sequencial})
+            response.raise_for_status()
+        except requests.RequestException:
+            return jsonify({"error": f"Erro ao solicitar permissão para a companhia {companhia}"}), 500
     return jsonify({"sucesso": True})
 
-# Processa requisições de outros servidores para acessar seção crítica
-@app.route('/pedido_acesso', methods=['POST'])
-def pedido_acesso():
-    dados = request.json
-    rota = dados["rota"]
-    caminho_idx = dados["caminho_idx"]
-    timestamp_pedido = dados["timestamp"]
+# Resposta da solicitação de acesso à seção crítica
+@app.route("/resposta_solicitacao", methods=["POST"])
+def resposta_solicitacao():
+    cliente_id = request.json.get("cliente_id")
+    sequencial = request.json.get("sequencial")
 
-    if timestamp_pedido < timestamp or not fila_pedidos:
-        return jsonify({"resposta": "ok"})
+    if cliente_id not in pendentes:
+        return jsonify({"error": "Cliente não encontrado"}), 404
+    
+    # Verifica se o pedido está em ordem
+    if sequencial > pendentes[cliente_id][0]["sequencial"]:
+        pendentes[cliente_id].append({"sequencial": sequencial})
+        return jsonify({"sucesso": True})
+    return jsonify({"sucesso": False})
+#api para verificar disponibilidade de passagens
+@app.route("/verificar_disponibilidade", methods=["GET"])
+def verificar_disponibilidade():
+    origem = request.args.get("origem")
+    destino = request.args.get("destino")
+    
+    if not origem or not destino:
+        return jsonify({"error": "Parâmetros 'origem' e 'destino' são necessários"}), 400
+    
+    # Percorre as rotas para encontrar o trecho com origem e destino solicitados
+    for rota in rotas.values():
+        for trecho in rota:
+            if trecho[0] == origem and trecho[1] == destino:
+                if trecho[2] > 0:
+                    passagens_disponiveis = trecho[2]
+                    return jsonify({"passagens_disponiveis": passagens_disponiveis})
+    # Se não encontrar o trecho, indica que o trecho não existe ou está indisponível
+    return jsonify({"error": "Trecho não encontrado ou indisponível"}), 404
 
-    while fila_pedidos:
-        requisicao_atual = fila_pedidos.pop(0)
-        if requisicao_atual[0] == rota and requisicao_atual[1] == caminho_idx:
-            timestamp += 1
-            return jsonify({"resposta": "ok"})
+#api para comprar passagens
+@app.route("/realizar_compra", methods=["POST"])
+def verificar_disponibilidade():
+    origem = request.args.get("origem")
+    destino = request.args.get("destino")
+    
+    if not origem or not destino:
+        return jsonify({"error": "Parâmetros 'origem' e 'destino' são necessários"}), 400
+    
+    # Percorre as rotas para encontrar o trecho com origem e destino solicitados
+    for rota in rotas.values():
+        for trecho in rota:
+            if trecho[0] == origem and trecho[1] == destino:
+                trecho[2] -=1
+    # Se não encontrar o trecho, indica que o trecho não existe ou está indisponível
+    return jsonify({"error": "Trecho não encontrado ou indisponível"}), 404
 
-    return jsonify({"erro": "Falha ao processar pedido"}), 500
+# Função para listar todas as rotas disponíveis combinando com as outras companhias
+def listar_rotas(con, rotas):
+    enviar_mensagem(con, "Rotas disponíveis de todas as companhias:")
 
-# Função para reservar um trecho localmente
-def reservar_trecho_local(rota_escolhida, caminho_idx):
-    caminho = rotas[rota_escolhida][caminho_idx]
+    # Dicionário para armazenar rotas unificadas (sem trechos)
+    rotas_completas = set(rotas.keys())
+
+    # Consultar rotas das outras companhias
+    for companhia, url in OUTRAS_COMPANHIAS.items():
+        try:
+            # Consulta as rotas da outra companhia via API
+            response = requests.get(f"{url}/rotas")
+            response.raise_for_status()
+            dados_companhia = response.json()
+
+            # Adiciona as rotas da companhia ao conjunto
+            rotas_completas.update(dados_companhia.keys())
+        except requests.RequestException:
+            enviar_mensagem(con, f"Erro ao obter rotas da companhia {companhia}")
+
+    # Exibir as rotas disponíveis ao cliente (apenas nomes)
+    rotas_completas = list(rotas_completas)
+    for i, rota in enumerate(rotas_completas):
+        enviar_mensagem(con, f"{i+1}. {rota}")
+
+    enviar_mensagem(con, "Escolha uma rota pelo número para ver os trechos detalhados:")
+    rota_idx = int(con.recv(1024).decode()) - 1
+    rota_escolhida = rotas_completas[rota_idx]
+    return rota_escolhida
+
+# Função para enviar mensagem ao cliente
+def enviar_mensagem(con, mensagem):
+    con.send(f"{mensagem}\n".encode())
+
+# Função para exibir trechos de todas as companhias
+def listar_todos_trechos(con, rota_escolhida, rotas):
+    enviar_mensagem(con, f"Trechos disponíveis para essa rota:{rota_escolhida}")
+    #todos_trechos = rotas[rota_escolhida]
+
+    for idx, caminho in enumerate(rotas[rota_escolhida]):
+        enviar_mensagem(con, f"{idx+1}. Trecho {idx+1}:")
+        for trecho in caminho:
+            enviar_mensagem(con, f" - {trecho[0]} -> {trecho[1]} com {trecho[2]} passagens disponíveis, {trecho[3]}")
+    
+    enviar_mensagem(con, "Escolha um caminho pelo número:")
+    caminho_idx = int(con.recv(1024).decode().strip()) - 1
+    companhia = trecho[3]
+    return rotas[rota_escolhida][caminho_idx], companhia
+
+# Percorre os trechos e verifica a disponibilidade
+def verificar_disponibilidade(caminho, companhia_atual):
+    for trecho in caminho:
+        origem, destino, passagens_disponiveis, companhia = trecho
+        if companhia == companhia_atual:
+            # Verifica localmente se o trecho é da companhia atual
+            if passagens_disponiveis <= 0:
+                return False  # Sem passagens disponíveis localmente
+        else:
+            # Consulta a companhia remota para verificar a disponibilidade
+            match trecho[3]:
+                case "Companhia A":
+                    url_companhia = "http://172.16.112.1:5000"
+                case "Companhia B":
+                    url_companhia = "http://172.16.112.2:5000"
+                case "Companhia C":
+                    url_companhia = "http://172.16.112.3:5000"
+            try:
+                response = requests.get(f"{url_companhia}/verificar_disponibilidade", params={"origem": origem, "destino": destino})
+                response.raise_for_status()
+                disponivel = response.json().get("disponivel", False)
+                if not disponivel:
+                    return False  # Se o trecho não tiver passagens, retorna False
+            except requests.RequestException as e:
+                print(f"Erro ao verificar a disponibilidade no servidor da companhia {companhia}: {e}")
+                return False  # Em caso de erro, assume indisponibilidade
+    return True  # Se todos os trechos tiverem passagens disponíveis, retorna True
+
+#faz a compra dos trechos
+def realizar_compra(caminho, companhia_atual):
     for i, trecho in enumerate(caminho):
-        origem, destino, passagens = trecho
-        rotas[rota_escolhida][caminho_idx][i] = (origem, destino, passagens - 1)
+        origem, destino, passagens_disponiveis, companhia = trecho
+        
+        if companhia == companhia_atual:
+            # Compra local: decrementa o número de passagens
+            caminho[i] = (origem, destino, passagens_disponiveis - 1, companhia)
+        else:
+            # Compra remota: realiza uma requisição para decrementar no servidor da outra companhia
+            match trecho[3]:
+                case "Companhia A":
+                    url_companhia = "http://172.16.112.1:5000"
+                case "Companhia B":
+                    url_companhia = "http://172.16.112.2:5000"
+                case "Companhia C":
+                    url_companhia = "http://172.16.112.3:5000"
+            try:
+                response = requests.post(f"{url_companhia}/realizar_compra", json={"origem": origem, "destino": destino})
+                response.raise_for_status()  # Confirma sucesso da requisição
+                sucesso = response.json().get("sucesso", False)
+                if not sucesso:
+                    print(f"Falha ao realizar a compra do trecho {origem} -> {destino} na companhia {companhia}.")
+            except requests.RequestException as e:
+                print(f"Erro ao realizar a compra no servidor da companhia {companhia}: {e}")
 
-# Função para processar a compra de trechos com consulta a todas as companhias
-def handle_client(con, addr):
-    try:
-        # Enviar mensagem de boas-vindas ao cliente
-        con.send(json.dumps({"mensagem": "Bem-vindo ao sistema VENDEPASS!", "rotas": list(rotas.keys())}).encode())
-
-        # Receber escolha da rota do cliente
-        dados = json.loads(con.recv(1024).decode())
-        rota_escolhida = dados.get("rota")
-
-        if rota_escolhida not in rotas:
-            con.send(json.dumps({"erro": "Rota invalida!"}).encode())
-            return
-
-        # Montar lista de caminhos com as rotas disponíveis na companhia atual
-        caminhos_disponiveis = [{"caminho": i, "trechos": [(trecho[0], trecho[1], trecho[2], "Companhia Atual")]}
-                                for i, caminho in enumerate(rotas[rota_escolhida])]
-
-        # Consultar rotas nas conveniadas
-        for nome, url in CONVENIADAS.items():
-            trechos_conveniados = consultar_rotas_conveniada(rota_escolhida, url)
-            if trechos_conveniados:
-                for caminho_idx, caminho in enumerate(trechos_conveniados):
-                    caminhos_disponiveis.append({
-                        "caminho": f"{caminho_idx} (Conveniadas)", 
-                        "trechos": [(trecho[0], trecho[1], trecho[2], nome) for trecho in caminho]
-                    })
-
-        # Enviar lista consolidada de caminhos e companhias para o cliente
-        con.send(json.dumps({"mensagem": "Escolha um caminho", "caminhos": caminhos_disponiveis}).encode())
-
-        # Receber escolha do caminho do cliente
-        dados = json.loads(con.recv(1024).decode())
-        caminho_idx = dados.get("caminho")
-
-        # Requisitar acesso para modificar trecho usando Ricart-Agrawala
-        requisitar_acesso(rota_escolhida, caminho_idx)
-
-        # Reserva de trechos na companhia correta
-        for trecho in caminhos_disponiveis[caminho_idx]["trechos"]:
-            origem, destino, passagens, companhia = trecho
-            if companhia == "Companhia Atual":
-                with lock:
-                    reservar_trecho_local(rota_escolhida, caminho_idx)
+def handle_client(con, adr, rotas):
+    print(f"Cliente conectado: {adr}")
+    con.send("Bem-vindo ao sistema de compra de passagens!\n".encode())
+    con.send("Escolha seu número ID: ")
+    client_ID = con.recv(1024).decode().strip()
+    while True:
+        rota_escolhida = listar_rotas(con, rotas)
+        caminho_escolhido, companhia = listar_todos_trechos(con, rota_escolhida, rotas)
+        enviar_mensagem(con, "Verificando a disponibilidade dos trechos...")
+        with lock:  # Bloquear para garantir consistência
+            if verificar_disponibilidade(caminho_escolhido, companhia):
+                solicitar_permissao(client_ID, OUTRAS_COMPANHIAS)
+                realizar_compra(caminho_escolhido, companhia)
+                enviar_mensagem(con, "Compra realizada com sucesso! Todos os trechos foram adquiridos.")
             else:
-                url_conveniada = CONVENIADAS[companhia]
-                if not reservar_trecho_externo(rota_escolhida, caminho_idx, url_conveniada):
-                    con.send(json.dumps({"erro": f"Erro ao reservar trecho {origem}-{destino} na {companhia}."}).encode())
-                    return
+                enviar_mensagem(con, "Não foi possível realizar a compra. Um ou mais trechos não possuem passagens suficientes.")
+        enviar_mensagem("Escolha se deseja fazer mais alguma coisa: 'Sim para ficar'")
+        resposta = con.recv(1024).decode().strip().lower()
+        if resposta != "Sim":
+            break
+    con.close()
+    print(f"Cliente desconectado: {adr}")
 
-        # Confirmação da reserva ao cliente
-        con.send(json.dumps({"sucesso": "Reserva completa com todos os trechos disponiveis!"}).encode())
-
-    except Exception as e:
-        con.send(json.dumps({"erro": str(e)}).encode())
-    finally:
-        con.close()
-
-# Configuração do socket para o cliente
-def iniciar_socket():
-    server_socket = socket(AF_INET, SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 10000))
-    server_socket.listen(5)
-    print("Servidor de passagens aéreas rodando...")
+# Função principal do servidor
+def main():
+    host = '0.0.0.0'  # Escuta em todas as interfaces
+    port = 10000
+    rotas = gerar_rotas(cidades)
+    server = socket(AF_INET, SOCK_STREAM)
+    server.bind((host, port))
+    server.listen(5)
+    print(f"Servidor da Companhia {COMPANHIA} rodando...")
 
     while True:
-        con, addr = server_socket.accept()
-        Thread(target=handle_client, args=(con, addr)).start()
+        con, adr = server.accept()
+        Thread(target=handle_client, args=(con, adr, rotas)).start()
 
 if __name__ == "__main__":
-    gerar_rotas(cidades)
-    inicializar_trechos_comprados()
-    Thread(target=iniciar_socket).start()
-    app.run(host="0.0.0.0", port=5000)
+    main()
