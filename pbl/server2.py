@@ -4,6 +4,8 @@ import random
 from flask import Flask, request, jsonify
 import requests
 import json
+pendentes = {}
+sequencial = 0
 app = Flask(__name__)
 lock = Lock()
 companhias = ["Companhia A", "Companhia B", "Companhia C"]
@@ -40,6 +42,44 @@ def inicializar_trechos_comprados(rotas):
 
 trechos_comprados = inicializar_trechos_comprados(rotas)
 
+
+# Solicitação de acesso à seção crítica
+@app.route("/solicitar_acesso", methods=["POST"])
+def solicitar_acesso():
+    global sequencial
+    cliente_id = request.args.get("cliente_id")
+
+    if cliente_id not in pendentes:
+        pendentes[cliente_id] = []
+
+    pendentes[cliente_id].append({
+        "sequencial": sequencial
+    })
+    sequencial += 1
+
+    # Envia a solicitação para todas as outras companhias
+    for companhia, url in OUTRAS_COMPANHIAS.items():
+        try:
+            response = requests.post(f"{url}/resposta_solicitacao", json={"cliente_id": cliente_id, "sequencial": sequencial})
+            response.raise_for_status()
+        except requests.RequestException:
+            return jsonify({"error": f"Erro ao solicitar permissão para a companhia {companhia}"}), 500
+    return jsonify({"sucesso": True})
+
+# Resposta da solicitação de acesso à seção crítica
+@app.route("/resposta_solicitacao", methods=["POST"])
+def resposta_solicitacao():
+    cliente_id = request.json.get("cliente_id")
+    sequencial = request.json.get("sequencial")
+
+    if cliente_id not in pendentes:
+        return jsonify({"error": "Cliente não encontrado"}), 404
+    
+    # Verifica se o pedido está em ordem
+    if sequencial > pendentes[cliente_id][0]["sequencial"]:
+        pendentes[cliente_id].append({"sequencial": sequencial})
+        return jsonify({"sucesso": True})
+    return jsonify({"sucesso": False})
 #api para verificar disponibilidade de passagens
 @app.route("/verificar_disponibilidade", methods=["GET"])
 def verificar_disponibilidade():
@@ -152,7 +192,6 @@ def verificar_disponibilidade(caminho, companhia_atual):
             except requests.RequestException as e:
                 print(f"Erro ao verificar a disponibilidade no servidor da companhia {companhia}: {e}")
                 return False  # Em caso de erro, assume indisponibilidade
-
     return True  # Se todos os trechos tiverem passagens disponíveis, retorna True
 
 def realizar_compra(caminho, companhia_atual):
