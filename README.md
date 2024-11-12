@@ -28,6 +28,9 @@ O cálculo de rotas utiliza a função gerar_rotas(cidades), que cria um conjunt
 4. Concorrência Distribuída
 
 Para garantir que uma passagem não seja vendida mais de uma vez, o sistema utiliza o algoritmo de exclusão mútua distribuída de Ricart-Agrawala. Cada servidor gerencia um controle de acesso aos trechos por meio de requisições sequenciais que são registradas e processadas em todos os servidores, assegurando que apenas um cliente possa comprar uma passagem específica em um dado momento.
+5. Confiabilidade da solução
+
+A solução lida com desconexões de servidores, isolando apenas o servidor desconectado sem interromper o funcionamento dos demais. Ao garantir a concorrência distribuída, o sistema assegura que o cliente possa concluir uma compra iniciada, mesmo em caso de falha temporária de algum servidor, desde que este seja restaurado.
 # Discussão e resultados
 1. Avaliação da Solução
 
