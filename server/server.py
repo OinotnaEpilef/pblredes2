@@ -14,9 +14,9 @@ cidades = ["Belém", "Fortaleza", "Brasília", "São Paulo", "Curitiba",
            "Rio de Janeiro", "Porto Alegre", "Salvador", "Manaus", "Recife"]
 COMPANHIA = "C"
 OUTRAS_COMPANHIAS = {
-    "A": "http://172.16.103.1:43342",
-    "B": "http://172.16.103.2:43342",
-    "C": "http://172.16.103.3:43342"
+    "A": "http://172.16.103.11:8080",
+    "B": "http://172.16.103.4:8080",
+    "C": "http://172.16.103.3:8080"
 }
 # Remover a companhia local do dicionário para evitar consultas a si mesma
 OUTRAS_COMPANHIAS.pop(COMPANHIA, None)
@@ -187,11 +187,11 @@ def verificar_disponibilidade(caminho, companhia_atual):
             # Consulta a companhia remota para verificar a disponibilidade
             match trecho[3]:
                 case "Companhia A":
-                    url_companhia = "http://172.16.103.1:43342"
+                    url_companhia = "http://172.16.103.11:8080"
                 case "Companhia B":
-                    url_companhia = "http://172.16.103.2:43342"
+                    url_companhia = "http://172.16.103.4:8080"
                 case "Companhia C":
-                    url_companhia = "http://172.16.103.3:43342"
+                    url_companhia = "http://172.16.103.3:8080"
             try:
                 response = requests.get(f"{url_companhia}/verificar_disponibilidade", params={"origem": origem, "destino": destino})
                 response.raise_for_status()
@@ -215,11 +215,11 @@ def realizar_compra(caminho, companhia_atual):
             # Compra remota: realiza uma requisição para decrementar no servidor da outra companhia
             match trecho[3]:
                 case "Companhia A":
-                    url_companhia = "http://172.16.103.1:43342"
+                    url_companhia = "http://172.16.103.11:8080"
                 case "Companhia B":
-                    url_companhia = "http://172.16.103.2:43342"
+                    url_companhia = "http://172.16.103.4:8080"
                 case "Companhia C":
-                    url_companhia = "http://172.16.103.3:43342"
+                    url_companhia = "http://172.16.103.3:8080"
             try:
                 response = requests.post(f"{url_companhia}/realizar_compra", json={"origem": origem, "destino": destino})
                 response.raise_for_status()  # Confirma sucesso da requisição
@@ -255,11 +255,11 @@ def handle_client(con, adr, rotas):
 # Função principal do servidor
 def main():
     # Obtém o nome da máquina local
-    #hostname = socket.gethostname()
+    hostname = socket.gethostname()
     # Obtém o endereço IP associado ao nome da máquina
-    #ip_address = socket.gethostbyname(hostname)
+    ip_address = socket.gethostbyname(hostname)
     host = "0.0.0.0"  # Escuta em todas as interfaces
-    port = 43342
+    port = 8080
     rotas = gerar_rotas(cidades)
     server = socket(AF_INET, SOCK_STREAM)
     server.bind((host, port))
