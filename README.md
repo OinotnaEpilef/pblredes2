@@ -61,7 +61,7 @@ O projeto emprega o Docker para contaneirizar cada servidor de companhia, simpli
 ```bash
     cd pblredes2/server
     docker build -t server .
-    docker run -d -p 5000:5000 --name server server
+    docker run -d -p 43342:43342 --name server server
 ```
 3. **Execute o arquivo client.py pelo terminal do linux ou por alguma IDE em um número máximo pré-definido de computadores (4)**
 # Conclusão

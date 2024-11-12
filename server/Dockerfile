@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py /app/
 
 # Expondo a porta onde o servidor Flask vai rodar
-EXPOSE 5000
+EXPOSE 43342
 
 # Comando para rodar o servidor
 CMD ["python", "server.py"]
