@@ -1,10 +1,4 @@
 from socket import *
-def exibir_mensagem(con):
-    """
-    Função para receber e exibir mensagens do servidor.
-    """
-    msg = con.recv(1024).decode()
-    print(msg)
 
 def escolher_servidor():
     """
