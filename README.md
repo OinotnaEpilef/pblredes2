@@ -49,5 +49,18 @@ O código está documentado com comentários que descrevem o propósito de cada 
 3. Emprego do Docker
 
 O projeto emprega o Docker para contaneirizar cada servidor de companhia, simplificando o gerenciamento e a execução em múltiplos ambientes. Cada container possui uma instância independente do servidor de passagens, e o cliente pode se conectar a qualquer um deles. A arquitetura baseada em Docker facilita a replicação e o teste do sistema, assegurando consistência e confiabilidade no ambiente distribuído.
+
+- Passo a passo para a execução do código no Docker:
+
+1. **Clone o repositório do github nas máquinas que utilizarão os servidores e os clientes**
+
+2. **Com o docker instalado, execute o código abaixo no terminal do linux:**
+
+```bash
+    cd pblredes2/server
+    docker build -t server .
+    docker run -d -p 5000:5000 --name server server
+```
+3. **Execute o arquivo client.py pelo terminal do linux ou por alguma IDE em um número máximo pré-definido de computadores (4)**
 # Conclusão
 O sistema distribuído de venda de passagens apresenta uma solução robusta e escalável, com capacidade de atender simultaneamente a múltiplos clientes e garantir a integridade das transações. A arquitetura distribuída, aliada ao uso do Docker e à aplicação do algoritmo Ricart-Agrawala para controle de concorrência, oferece uma experiência de compra de passagens segura e confiável em um ambiente de múltiplos servidores, demonstrando um modelo eficiente de gestão de passagens em um cenário realista de transporte aéreo.
