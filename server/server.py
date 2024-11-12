@@ -255,10 +255,10 @@ def handle_client(con, adr, rotas):
 # Função principal do servidor
 def main():
     # Obtém o nome da máquina local
-    hostname = socket.gethostname()
+    #hostname = socket.gethostname()
     # Obtém o endereço IP associado ao nome da máquina
-    ip_address = socket.gethostbyname(hostname)
-    host = ip_address  # Escuta em todas as interfaces
+    #ip_address = socket.gethostbyname(hostname)
+    host = "0.0.0.0"  # Escuta em todas as interfaces
     port = 43342
     rotas = gerar_rotas(cidades)
     server = socket(AF_INET, SOCK_STREAM)
