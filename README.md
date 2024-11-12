@@ -6,7 +6,7 @@ email: felipetompsomf18@gmail.com
 **Resumo**
 Este projeto apresenta uma solução para a venda de passagens distribuída entre diferentes servidores de companhias aéreas, aplicando uma arquitetura de comunicação cliente-servidor distribuída. Os servidores de cada companhia mantêm informações sobre rotas e passagens, interligando-se por meio de APIs para verificar a disponibilidade de trechos e realizar vendas em tempo real. Para garantir consistência e exclusividade nas compras, foi implementado um mecanismo de exclusão mútua distribuída com base no algoritmo Ricart-Agrawala, prevenindo conflitos e garantindo que cada trecho seja adquirido apenas uma vez. Além disso, os servidores compartilham as rotas disponíveis com os clientes, que escolhem as passagens com base em uma lista consolidada de todas as companhias participantes. Utilizando Docker para contaneirização, o sistema facilita a execução em diferentes ambientes, garantindo replicação e simplificando testes de desempenho e concorrência em larga escala. O projeto documenta o desenvolvimento completo, incluindo código no GitHub, com explicações sobre as principais funções e testes automatizados para assegurar confiabilidade e robustez da solução.
 # Introdução
-Este projeto apresenta uma solução distribuída para a venda de passagens entre diferentes companhias aéreas utilizando uma rede de servidores distribuídos. Com o uso de APIs REST para comunicação entre os servidores e com os clientes, o sistema busca garantir a disponibilidade, a consistência dos dados e o controle de concorrência, essencial para que uma passagem não seja vendida mais de uma vez. Além disso, a arquitetura foi desenvolvida com suporte ao Docker, possibilitando fácil replicação e execução em ambientes isolados.
+Este projeto apresenta uma solução distribuída para a venda de passagens entre diferentes companhias aéreas utilizando uma rede de servidores distribuídos. Com o uso de APIs REST para comunicação entre os servidores e com os clientes, o sistema busca garantir a disponibilidade, a consistência dos dados e o controle de concorrência, essencial para que uma passagem não seja vendida mais de uma vez.
 # Metodologia utilizada
 
 1. Arquitetura da Solução
@@ -44,7 +44,7 @@ O código do sistema está disponível no GitHub, e foram feitos testes para val
 
 2. Documentação do Código
 
-O código está documentado com comentários que descrevem o propósito de cada função e os parâmetros que ela utiliza. Os principais trechos de código incluem explicações detalhadas sobre o funcionamento das APIs e a lógica de concorrência, facilitando a compreensão e manutenção do sistema.
+O código está documentado com comentários que descrevem o propósito de cada função. Os principais trechos de código incluem explicações detalhadas sobre o funcionamento das APIs e a lógica de concorrência, facilitando a compreensão e manutenção do sistema.
 
 3. Emprego do Docker
 
