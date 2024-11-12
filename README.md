@@ -40,7 +40,7 @@ A solução lida com desconexões de servidores, isolando apenas o servidor desc
 
 1. Avaliação da Solução
 
-O código do sistema está disponível no GitHub, juntamente com testes automatizados para validar a consistência da solução. Esses testes permitem avaliar o comportamento do sistema sob condições críticas, verificando a robustez da lógica de concorrência e o desempenho em cenários de alta demanda e falhas de conexão.
+O código do sistema está disponível no GitHub, e foram feitos testes para validar a consistência da solução. Esses testes permitem avaliar o comportamento do sistema sob condições críticas, verificando a robustez da lógica de concorrência e o desempenho em cenários de alta demanda e falhas de conexão.
 
 2. Documentação do Código
 
