@@ -263,7 +263,7 @@ def main():
     rotas = gerar_rotas(cidades)
     server = socket(AF_INET, SOCK_STREAM)
     server.bind((host, port))
-    server.listen(6)
+    server.listen(7)
     print(f"Servidor da Companhia {COMPANHIA} rodando...")
 
     while True:
